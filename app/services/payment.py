@@ -1,81 +1,131 @@
 import httpx
-import uuid
 from app.core.config import settings
-from typing import Dict, Any
+from typing import Dict
+import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PaymentService:
     def __init__(self):
         self.base_url = "https://api.flutterwave.com/v3"
-        self.secret_key = settings.FLUTTERWAVE_SECRET_KEY
-        self.public_key = settings.FLUTTERWAVE_PUBLIC_KEY
-    
-    def get_headers(self) -> Dict[str, str]:
-        return {
-            "Authorization": f"Bearer {self.secret_key}",
+        self.headers = {
+            "Authorization": f"Bearer {settings.FLUTTERWAVE_SECRET_KEY}",
             "Content-Type": "application/json"
         }
-    
-    async def initialize_payment(self, user_id: str, email: str, amount_naira: float, 
-                               credits: int, callback_url: str) -> Dict[str, Any]:
-        """Initialize Flutterwave payment"""
-        tx_ref = f"IMG_CREDITS_{user_id}_{uuid.uuid4()}"
+
+    async def initialize_payment(
+        self, 
+        user_id: str, 
+        email: str, 
+        amount: float, 
+        credits: int,
+        callback_url: str
+    ) -> Dict:
+        """Initialize payment with Flutterwave"""
+        
+        tx_ref = f"credit_purchase_{user_id}_{uuid.uuid4().hex[:8]}"
         
         payload = {
             "tx_ref": tx_ref,
-            "amount": amount_naira,
+            "amount": amount,
             "currency": "NGN",
             "redirect_url": callback_url,
-            "payment_options": "card,mobilemoney,ussd",
             "customer": {
                 "email": email,
-                "name": email.split('@')[0]
+                "name": f"User {user_id}"
             },
             "customizations": {
-                "title": "Image Translation Credits",
-                "description": f"Purchase {credits} image translation credits",
-                "logo": "https://yourdomain.com/logo.png"
+                "title": "Credit Purchase",
+                "description": f"Purchase {credits} credits",
+                "logo": "https://your-domain.com/logo.png"
             },
             "meta": {
                 "user_id": user_id,
-                "credits": credits,
-                "source": "api"
+                "credits": credits
             }
         }
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/payments",
-                headers=self.get_headers(),
-                json=payload
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"Payment initialization failed: {response.text}")
-            
-            result = response.json()
-            if result["status"] != "success":
-                raise Exception(f"Payment initialization failed: {result.get('message', 'Unknown error')}")
-            
-            return {
-                "payment_link": result["data"]["link"],
-                "tx_ref": tx_ref,
-                "amount": amount_naira,
-                "credits": credits
-            }
-    
-    async def verify_payment(self, tx_ref: str) -> Dict[str, Any]:
-        """Verify Flutterwave payment"""
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.base_url}/transactions/verify_by_reference?tx_ref={tx_ref}",
-                headers=self.get_headers()
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"Payment verification failed: {response.text}")
-            
-            result = response.json()
-            if result["status"] != "success":
-                raise Exception(f"Payment verification failed: {result.get('message', 'Unknown error')}")
-            
-            return result["data"]
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/payments",
+                    json=payload,
+                    headers=self.headers,
+                    timeout=30.0
+                )
+                
+                response.raise_for_status()
+                data = response.json()
+                
+                if data.get("status") == "success":
+                    return {
+                        "payment_link": data["data"]["link"],
+                        "tx_ref": tx_ref
+                    }
+                else:
+                    raise Exception(f"Payment initialization failed: {data.get('message', 'Unknown error')}")
+                    
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error during payment initialization: {str(e)}")
+            raise Exception("Payment service unavailable")
+        except Exception as e:
+            logger.error(f"Payment initialization error: {str(e)}")
+            raise Exception("Payment initialization failed")
+
+    async def verify_payment(self, tx_ref: str) -> Dict:
+        """Verify payment status with Flutterwave"""
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/transactions/verify_by_reference?tx_ref={tx_ref}",
+                    headers=self.headers,
+                    timeout=30.0
+                )
+                
+                response.raise_for_status()
+                data = response.json()
+                
+                if data.get("status") == "success":
+                    return data["data"]
+                else:
+                    raise Exception(f"Payment verification failed: {data.get('message', 'Unknown error')}")
+                    
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error during payment verification: {str(e)}")
+            raise Exception("Payment verification service unavailable")
+        except Exception as e:
+            logger.error(f"Payment verification error: {str(e)}")
+            raise Exception("Payment verification failed")
+
+    async def refund_payment(self, flw_ref: str, amount: float) -> Dict:
+        """Refund a payment via Flutterwave"""
+        
+        payload = {
+            "amount": amount
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/transactions/{flw_ref}/refund",
+                    json=payload,
+                    headers=self.headers,
+                    timeout=30.0
+                )
+                
+                response.raise_for_status()
+                data = response.json()
+                
+                if data.get("status") == "success":
+                    return data["data"]
+                else:
+                    raise Exception(f"Refund failed: {data.get('message', 'Unknown error')}")
+                    
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error during refund: {str(e)}")
+            raise Exception("Refund service unavailable")
+        except Exception as e:
+            logger.error(f"Refund error: {str(e)}")
+            raise Exception("Refund failed")

@@ -7,6 +7,9 @@ import asyncio
 import httpx
 from app.core.config import settings
 from datetime import datetime, timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ImageProcessingService:
     def __init__(self):
@@ -195,7 +198,7 @@ class ImageProcessingService:
                             break
                     except Exception as e:
                         if attempt == settings.WEBHOOK_MAX_RETRIES - 1:
-                            logging.error(f"Webhook failed after {settings.WEBHOOK_MAX_RETRIES} attempts: {e}")
+                            logger.error(f"Webhook failed after {settings.WEBHOOK_MAX_RETRIES} attempts: {e}")
                         else:
                             await asyncio.sleep(2 ** attempt)  # Exponential backoff
         except Exception as e:
