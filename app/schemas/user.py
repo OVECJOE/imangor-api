@@ -1,14 +1,18 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
-from datetime import datetime
 import uuid
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, EmailStr
+
 
 class UserBase(BaseModel):
     email: EmailStr
     name: str
 
+
 class UserCreate(UserBase):
     pass
+
 
 class UserResponse(UserBase):
     id: uuid.UUID
@@ -19,12 +23,14 @@ class UserResponse(UserBase):
     api_key: str
     created_at: datetime
     last_login: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
+
 class GoogleAuthRequest(BaseModel):
     token: str
+
 
 class AuthResponse(BaseModel):
     access_token: str

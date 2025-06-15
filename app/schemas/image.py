@@ -1,8 +1,10 @@
-from enum import Enum
-from typing import Optional
 import uuid
 from datetime import datetime
+from enum import Enum
+from typing import Optional
+
 from pydantic import BaseModel
+
 
 class SupportedLanguage(str, Enum):
     EN = "en"
@@ -18,10 +20,12 @@ class SupportedLanguage(str, Enum):
     AR = "ar"
     HI = "hi"
 
-class ImageUploadRequest(BaseModel):
+
+class ImageTranslationRequest(BaseModel):
     source_language: SupportedLanguage
     target_language: SupportedLanguage
     webhook_url: Optional[str] = None
+
 
 class ImageJobResponse(BaseModel):
     id: uuid.UUID
@@ -39,9 +43,10 @@ class ImageJobResponse(BaseModel):
     processing_completed_at: Optional[datetime] = None
     error_message: Optional[str] = None
     download_url: Optional[str] = None
-    
+
     class Config:
         from_attributes = True
+
 
 class DeviceFingerprintRequest(BaseModel):
     user_agent: str
