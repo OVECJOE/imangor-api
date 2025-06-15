@@ -83,9 +83,7 @@ class DeviceTrackingService:
     def cleanup_old_fingerprints(self, days_old: int = 90):
         """Clean up old device fingerprints (should be run as periodic task)"""
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
-
         old_fingerprints = self.db.query(DeviceFingerprint).filter(DeviceFingerprint.last_seen < cutoff_date).all()
-
         for fingerprint in old_fingerprints:
             self.db.delete(fingerprint)
 
